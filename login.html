@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GL99 - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#dce6f2] flex items-center justify-center h-screen">
+    <div class="bg-white p-8 rounded shadow-lg w-96 border-t-4 border-[#1e5396]">
+        <h1 class="text-4xl font-black italic text-[#1e5396] text-center mb-6">GL99</h1>
+        <input id="user" type="text" placeholder="Username" class="w-full border p-2 mb-4 rounded bg-gray-50 focus:outline-none focus:border-blue-800">
+        <input id="pass" type="password" placeholder="Password" class="w-full border p-2 mb-6 rounded bg-gray-50 focus:outline-none focus:border-blue-800">
+        <button onclick="login()" class="w-full bg-[#1e5396] text-white font-bold py-2 rounded hover:bg-blue-800 transition duration-200">LOGIN</button>
+        <div class="mt-4 text-center text-xs text-gray-400">Restricted Access. Authorized Personnel Only.</div>
+    </div>
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+        async function login() {
+            const u = document.getElementById('user').value;
+            const p = document.getElementById('pass').value;
+            if(!u || !p) return alert("Please enter credentials");
+            
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({username:u, password:p})
+                });
+                const d = await res.json();
+                if(d.success) {
+                    localStorage.setItem('gl99_user', JSON.stringify(d.user));
+                    // Simple check: if username is 'admin', go to admin panel, else user site
+                    if(d.user.username.toLowerCase() === 'admin') window.location.href = 'admin.html';
+                    else window.location.href = 'index.html';
+                } else alert(d.error);
+            } catch(e) { alert("Connection Error"); }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GL99 - Master Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background: #eef2f6; font-family: Tahoma, sans-serif; font-size: 12px; overflow: hidden; }
+        
+        /* HEADER */
+        .admin-header { background: linear-gradient(to bottom, #3b5998, #1e5396); height: 45px; color: white; display: flex; align-items: center; padding: 0 15px; border-bottom: 2px solid #000; justify-content: space-between; }
+        .logo { font-size: 20px; font-weight: 900; font-style: italic; color: #ffcc00; text-shadow: 1px 1px 1px #000; }
+
+        /* SIDEBAR */
+        .sidebar { width: 220px; background: #fff; border-right: 1px solid #ccc; height: calc(100vh - 45px); float: left; display: flex; flex-direction: column; }
+        .menu-item { padding: 12px 15px; border-bottom: 1px solid #eee; cursor: pointer; color: #444; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .menu-item:hover, .menu-item.active { background: #f0f7ff; color: #1e5396; border-left: 4px solid #1e5396; }
+
+        /* CONTENT */
+        .content { margin-left: 220px; padding: 20px; height: calc(100vh - 45px); overflow-y: auto; }
+        
+        /* CARDS */
+        .card { background: white; border: 1px solid #ccc; border-radius: 4px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-box { background: linear-gradient(to bottom, #fff, #f4f4f4); border: 1px solid #ccc; padding: 15px; border-radius: 4px; text-align: center; }
+        .stat-val { font-size: 18px; font-weight: bold; color: #1e5396; margin-top: 5px; }
+        .stat-label { color: #666; font-size: 11px; text-transform: uppercase; }
+
+        /* TABLE */
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th { background: #5c87b2; color: white; padding: 8px; text-align: left; border: 1px solid #fff; }
+        td { padding: 8px; border: 1px solid #ccc; color: #333; vertical-align: middle; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        
+        /* MODAL */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 50; }
+        .modal-content { background: white; padding: 20px; width: 400px; border-radius: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        
+        .btn { padding: 5px 10px; border-radius: 3px; font-weight: bold; cursor: pointer; color: white; border: 1px solid rgba(0,0,0,0.1); }
+        .btn-blue { background: #1e5396; }
+        .btn-green { background: #2e7d32; }
+        .btn-red { background: #c62828; }
+    </style>
+</head>
+<body>
+
+    <div class="admin-header">
+        <div class="logo">GL99 <span class="text-white text-xs not-italic font-normal ml-2">MASTER AGENT</span></div>
+        <button onclick="location.href='login.html'" class="btn btn-red text-xs">Logout</button>
+    </div>
+
+    <div class="sidebar">
+        <div class="menu-item active" onclick="showSection('dash')"><i class="fas fa-chart-line"></i> Dashboard</div>
+        <div class="menu-item" onclick="showSection('users')"><i class="fas fa-users"></i> Member Management</div>
+        <div class="menu-item" onclick="showSection('bets')"><i class="fas fa-ticket-alt"></i> Running Bets</div>
+        <div class="menu-item" onclick="showSection('settings')"><i class="fas fa-cogs"></i> System Settings</div>
+    </div>
+
+    <div class="content">
+        <div id="sec-dash">
+            <h2 class="text-lg font-bold text-gray-700 mb-4">System Overview</h2>
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Total Members</div>
+                    <div class="stat-val" id="total-users">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Active Bets</div>
+                    <div class="stat-val" id="total-bets">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Total Liability</div>
+                    <div class="stat-val text-red-600" id="total-liability">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">System Balance</div>
+                    <div class="stat-val text-green-600">∞</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="font-bold border-b pb-2 mb-2">Recent Activity</h3>
+                <div id="recent-logs" class="text-gray-500 italic">No recent activity.</div>
+            </div>
+        </div>
+
+        <div id="sec-users" style="display:none;">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-700">Member List</h2>
+                <button onclick="openAddUser()" class="btn btn-green"><i class="fas fa-user-plus"></i> Add New Member</button>
+            </div>
+            <div class="card p-0">
+                <table>
+                    <thead><tr><th>Username</th><th>Credit</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody id="user-table"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="sec-bets" style="display:none;">
+            <h2 class="text-lg font-bold text-gray-700 mb-4">Running Tickets</h2>
+            <div id="bet-container" class="space-y-2"></div>
+        </div>
+        
+        <div id="sec-settings" style="display:none;">
+            <h2 class="text-lg font-bold text-gray-700 mb-4">Settings</h2>
+            <div class="card">
+                <p>API Connection: <span class="text-green-600 font-bold">Connected</span></p>
+                <p>Odds Source: <span class="font-bold">1xBet / Bet365 (Global)</span></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-add-user" class="modal">
+        <div class="modal-content">
+            <h3 class="font-bold text-lg mb-4 text-[#1e5396]">Create New Member</h3>
+            <input type="text" id="new-user" placeholder="Username" class="w-full border p-2 mb-2">
+            <input type="password" id="new-pass" placeholder="Password" class="w-full border p-2 mb-4">
+            <div class="flex gap-2">
+                <button onclick="createUser()" class="btn btn-blue flex-1">Create</button>
+                <button onclick="closeModal('modal-add-user')" class="btn btn-red flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-credit" class="modal">
+        <div class="modal-content">
+            <h3 class="font-bold text-lg mb-2 text-[#1e5396]">Manage Credit</h3>
+            <p id="target-user" class="font-bold mb-4"></p>
+            <input type="number" id="credit-amt" placeholder="Amount" class="w-full border p-2 mb-4">
+            <div class="flex gap-2">
+                <button onclick="updateBalance('add')" class="btn btn-green flex-1">DEPOSIT</button>
+                <button onclick="updateBalance('sub')" class="btn btn-red flex-1">WITHDRAW</button>
+            </div>
+            <button onclick="closeModal('modal-credit')" class="w-full mt-2 text-gray-500 underline">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+        let selectedUser = '';
+
+        function showSection(id) {
+            ['dash','users','bets','settings'].forEach(s => document.getElementById('sec-'+s).style.display = 'none');
+            document.getElementById('sec-'+id).style.display = 'block';
+            
+            // Highlight Menu
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active'); // Needs event context, simplified here
+            
+            loadData();
+        }
+
+        async function loadData() {
+            try {
+                const res = await fetch(`${API_BASE}/admin/users`);
+                const users = await res.json();
+                
+                // --- UPDATE USERS TABLE ---
+                const uTable = document.getElementById('user-table');
+                uTable.innerHTML = '';
+                let totalLiability = 0;
+                let activeBetsCount = 0;
+
+                users.forEach(u => {
+                    uTable.innerHTML += `
+                    <tr>
+                        <td class="font-bold text-blue-800">${u.username}</td>
+                        <td class="font-bold">${u.balance.toLocaleString()}</td>
+                        <td><span class="bg-green-100 text-green-800 px-2 rounded text-[10px]">ACTIVE</span></td>
+                        <td>
+                            <button onclick="openCreditModal('${u.username}')" class="btn btn-blue text-[10px]">Cash</button>
+                        </td>
+                    </tr>`;
+
+                    // --- COLLECT BETS ---
+                    if(u.history) {
+                        u.history.forEach((h, idx) => {
+                            if(h.status === 'Running' || h.status === 'Pending') {
+                                activeBetsCount++;
+                                totalLiability += h.stake;
+                            }
+                        });
+                    }
+                });
+
+                // --- DASHBOARD ---
+                document.getElementById('total-users').innerText = users.length;
+                document.getElementById('total-bets').innerText = activeBetsCount;
+                document.getElementById('total-liability').innerText = totalLiability.toLocaleString();
+
+                // --- BETS TABLE ---
+                const bContainer = document.getElementById('bet-container');
+                bContainer.innerHTML = '';
+                if(activeBetsCount === 0) bContainer.innerHTML = '<div class="p-4 italic text-gray-500">No active bets currently.</div>';
+                
+                users.forEach(u => {
+                    if(u.history) {
+                        u.history.forEach((h, idx) => {
+                            if(h.status === 'Running' || h.status === 'Pending') {
+                                let content = h.matches.map(m => `<div>${m.matchName} [${m.sel} @ ${m.odds}]</div>`).join('');
+                                bContainer.innerHTML += `
+                                <div class="bg-white border p-3 rounded shadow-sm flex justify-between items-center">
+                                    <div class="text-xs">
+                                        <div class="font-bold text-blue-800">${u.username}</div>
+                                        <div class="text-gray-500">${h.date}</div>
+                                        <div class="mt-1">${content}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-lg">${h.stake.toLocaleString()}</div>
+                                        <div class="flex gap-1 mt-1">
+                                            <button onclick="settleBet('${u.username}', ${idx}, 'Win')" class="bg-green-600 text-white px-2 py-1 rounded text-[10px]">Win</button>
+                                            <button onclick="settleBet('${u.username}', ${idx}, 'Loss')" class="bg-red-600 text-white px-2 py-1 rounded text-[10px]">Loss</button>
+                                        </div>
+                                    </div>
+                                </div>`;
+                            }
+                        });
+                    }
+                });
+
+            } catch(e) { console.error(e); }
+        }
+
+        // --- ACTIONS ---
+        function openAddUser() { document.getElementById('modal-add-user').style.display = 'flex'; }
+        function openCreditModal(u) { selectedUser=u; document.getElementById('target-user').innerText=u; document.getElementById('modal-credit').style.display='flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        async function createUser() {
+            const u = document.getElementById('new-user').value;
+            const p = document.getElementById('new-pass').value;
+            if(!u || !p) return alert("Fill all fields");
+            await fetch(`${API_BASE}/auth/register`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({username:u, password:p})
+            });
+            alert("User Created!"); closeModal('modal-add-user'); loadData();
+        }
+
+        async function updateBalance(type) {
+            const amt = document.getElementById('credit-amt').value;
+            if(!amt) return;
+            await fetch(`${API_BASE}/admin/balance`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({username:selectedUser, amount:parseInt(amt), type})
+            });
+            alert("Success!"); closeModal('modal-credit'); loadData();
+        }
+
+        async function settleBet(user, idx, res) {
+            if(!confirm("Confirm Settlement?")) return;
+            await fetch(`${API_BASE}/admin/settle`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({username:user, betIndex:idx, result:res})
+            });
+            loadData();
+        }
+
+        loadData();
+    </script>
+</body>
+</html>
