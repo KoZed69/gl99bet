@@ -31,12 +31,8 @@ function toMalay(decimal) {
 
 app.get('/odds', async (req, res) => {
     try {
-        console.log("⏳ Fetching Real-time In-Play & 7-Day Data...");
-        
-        // ၁။ Live (In-Play) ဆွဲယူခြင်း
         const inplayRes = await axios.get(`${BETS_API_URL}/bet365/inplay`, { params: { token: TOKEN, sport_id: 1 } });
         
-        // ၂။ ၇ ရက်စာ Upcoming ဆွဲယူခြင်း
         const upcomingPromises = [];
         for (let i = 0; i < 7; i++) {
             const date = new Date();
@@ -49,23 +45,19 @@ app.get('/odds', async (req, res) => {
         }
 
         const upcomingResults = await Promise.all(upcomingPromises);
-
-        // --- Live နှင့် Upcoming ကို တိကျစွာ ခွဲခြားခြင်း ---
         const liveMatches = (inplayRes.data.results || []).map(m => ({ ...m, isLiveFlag: true }));
         let upcomingRaw = [];
         upcomingResults.forEach(r => { if(r.data && r.data.results) upcomingRaw = [...upcomingRaw, ...r.data.results]; });
         const upcomingMatches = upcomingRaw.map(m => ({ ...m, isLiveFlag: false }));
 
-        const allRaw = [...liveMatches, ...upcomingMatches];
-
-        const processed = allRaw
+        const processed = [...liveMatches, ...upcomingMatches]
             .filter(m => m.league && !m.league.name.toLowerCase().includes("esoccer"))
             .map(m => {
                 const sp = m.main?.sp || m.odds?.main?.sp || {};
                 return {
                     id: m.id, league: m.league.name, home: m.home.name, away: m.away.name,
                     time: new Date(m.time * 1000).toISOString(),
-                    isLive: m.isLiveFlag, // server-side မှ တိုက်ရိုက် tag ပေးလိုက်ခြင်း
+                    isLive: m.isLiveFlag,
                     score: m.ss || "0-0",
                     timer: m.timer?.tm || "0",
                     fullTime: {
@@ -79,15 +71,32 @@ app.get('/odds', async (req, res) => {
                     }
                 };
             });
-        console.log(`✅ Success: Found ${processed.length} matches (Live: ${liveMatches.length})`);
         res.json(processed);
     } catch (e) { res.status(200).json([]); }
 });
 
-// မူလ User & Auth Routes များကို server (1).js အတိုင်း ဆက်ထားပါ
-app.post('/auth/login', async (req, res) => { /* logic */ });
-app.post('/user/sync', async (req, res) => { /* logic */ });
-app.post('/user/bet', async (req, res) => { /* logic */ });
+// Full Logic Restoration
+app.post('/auth/login', async (req, res) => {
+    const { username, password } = req.body;
+    const user = await User.findOne({ username });
+    if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "Invalid" });
+    res.json({ success: true, user });
+});
+
+app.post('/user/sync', async (req, res) => {
+    const user = await User.findOne({ username: req.body.username });
+    res.json(user || { balance: 0 });
+});
+
+app.post('/user/bet', async (req, res) => {
+    const { username, stake, ticket } = req.body;
+    const user = await User.findOne({ username });
+    if(!user || user.balance < stake) return res.status(400).json({ error: "Low Funds" });
+    user.balance -= stake;
+    user.history.unshift(ticket);
+    await user.save();
+    res.json({ success: true });
+});
 
 const PORT = process.env.PORT || 10000; 
-app.listen(PORT, () => console.log(`🚀 GL99 Real Soccer Live on Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Final GL99 Server Live on ${PORT}`));

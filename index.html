@@ -82,13 +82,12 @@
     const currentUser = JSON.parse(localStorage.getItem('gl99_user'));
     let allMatches = [], currentTab = 'Today', slip = [];
 
-    // Critical Fix: Defining syncUser before init
+    // syncUser must be defined before init
     async function syncUser() {
         if (!currentUser) return;
         try {
             const r = await fetch(`${API_BASE}/user/sync`, {
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
+                method: 'POST', headers: {'Content-Type': 'application/json'}, 
                 body: JSON.stringify({username: currentUser.username})
             });
             const d = await r.json(); 
@@ -102,7 +101,7 @@
         const userEl = document.getElementById('user-name');
         if (userEl) userEl.innerText = currentUser.username;
         await fetchOdds(); 
-        await syncUser(); // Now defined properly
+        await syncUser();
         setInterval(fetchOdds, 30000); 
     }
 
@@ -110,9 +109,8 @@
         try {
             const res = await fetch(`${API_BASE}/odds`);
             allMatches = await res.json(); 
-            console.log("Matches Received:", allMatches.length);
             renderTable();
-        } catch(e) { console.error("Fetch Error:", e); }
+        } catch(e) { console.error("Fetch Error"); }
     }
 
     function setTab(tab, el) {
@@ -121,29 +119,25 @@
             d.classList.remove('bg-white', 'text-red-700');
             d.classList.add('cursor-pointer');
         });
-        if(el) {
-            el.classList.add('bg-white', 'text-red-700');
-            el.classList.remove('cursor-pointer');
-        }
+        if(el) { el.classList.add('bg-white', 'text-red-700'); el.classList.remove('cursor-pointer'); }
         renderTable();
     }
 
     function renderTable() {
         const tbody = document.getElementById('match-body'); 
         if(!tbody) return;
-        
         const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
 
-        // Perfection Fix: Robust Filtering logic
         let filtered = allMatches.filter(m => {
-            if (currentTab === 'Live') return m.isLive === true;
+            // Strong Live detection logic
+            const isActuallyLive = m.isLive === true || (m.timer && m.timer !== "0") || (m.score && m.score !== "0-0");
+            if (currentTab === 'Live') return isActuallyLive;
             const mTime = new Date(m.time);
-            if (currentTab === 'Today') return m.isLive === false && mTime <= todayEnd;
+            if (currentTab === 'Today') return !isActuallyLive && mTime <= todayEnd;
             if (currentTab === 'Early') return mTime > todayEnd;
             return true;
         });
 
-        // Sidebar Counts update
         const hdpEl = document.getElementById('cnt-hdp');
         if(hdpEl) hdpEl.innerText = filtered.length;
 
@@ -160,7 +154,6 @@
             htmlBuffer += `<tr><td colspan="6" class="row-head">${league}</td></tr>`;
             matches.forEach(m => {
                 const timeStr = new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                // Live Display Logic
                 const timeDisp = m.isLive ? `<div class="text-red-600 font-bold animate-pulse">${m.timer}'</div><div class="bg-red-600 text-white px-1 rounded inline-block font-black">${m.score}</div>` : `<div class="text-gray-500">${timeStr}</div>`;
 
                 htmlBuffer += `
@@ -183,15 +176,13 @@
         if(!slipContainer) return;
         slip = [{ matchId, home, away, market, selection, odds: parseFloat(odds) }];
         slipContainer.innerHTML = `<div class="bg-yellow-50 border border-yellow-400 p-2 rounded text-[10px]"><b>${selection} @${odds}</b><br>${market}<br>${home} vs ${away}</div>`;
-        document.getElementById('slip-action').classList.remove('hidden');
-        calcWin();
+        document.getElementById('slip-action').classList.remove('hidden'); calcWin();
     }
 
     function calcWin() {
         const stakeInput = document.getElementById('stake-input');
-        const maxWin = document.getElementById('max-win');
-        if(!stakeInput || !maxWin || slip.length === 0) return;
-        maxWin.innerText = (parseInt(stakeInput.value || 0) * slip[0].odds).toLocaleString();
+        if(!stakeInput || slip.length === 0) return;
+        document.getElementById('max-win').innerText = (parseInt(stakeInput.value || 0) * slip[0].odds).toLocaleString();
     }
 
     async function placeBet() {
