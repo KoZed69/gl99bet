@@ -10,12 +10,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// --- CONFIG ---
-const MONGO_URI = process.env.MONGO_URI; 
-const TOKEN = process.env.BETS_API_TOKEN;
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://kozed:Bwargyi69@cluster0.s5oybom.mongodb.net/gl99_db";
+const TOKEN = process.env.BETS_API_TOKEN || "241806-4Tr2NNdfhQxz9X";
 const BETS_API_URL = "https://api.b365api.com/v1";
 
-mongoose.connect(MONGO_URI).then(() => console.log("✅ GL99 Production DB Connected"));
+mongoose.connect(MONGO_URI).then(() => console.log("✅ GL99 Database Connected"));
 
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, unique: true },
@@ -30,23 +29,16 @@ function toMalay(decimal) {
     return d <= 2.0 ? (d - 1).toFixed(2) : (-1 / (d - 1)).toFixed(2);
 }
 
-// ၇ ရက်စာ ဒေတာ ရယူခြင်း
 app.get('/odds', async (req, res) => {
     try {
-        // ၁။ Live (In-Play) ဆွဲယူခြင်း
+        console.log("⏳ Fetching 7-Day & In-Play Data...");
         const inplayRes = await axios.get(`${BETS_API_URL}/bet365/inplay`, { params: { token: TOKEN, sport_id: 1 } });
-
-        // ၂။ နောက်လာမည့် ၇ ရက်စာအတွက် loop ပတ်၍ ခေါ်ယူခြင်း
-        const daysToFetch = 7;
+        
         const upcomingPromises = [];
-        for (let i = 0; i < daysToFetch; i++) {
-            const date = new Date();
-            date.setDate(date.getDate() + i);
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(); date.setDate(date.getDate() + i);
             const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-            upcomingPromises.push(
-                axios.get(`${BETS_API_URL}/bet365/upcoming`, { params: { token: TOKEN, sport_id: 1, day: dateStr } })
-                .catch(() => ({ data: { results: [] } }))
-            );
+            upcomingPromises.push(axios.get(`${BETS_API_URL}/bet365/upcoming`, { params: { token: TOKEN, sport_id: 1, day: dateStr } }).catch(() => ({ data: { results: [] } })));
         }
 
         const upcomingResults = await Promise.all(upcomingPromises);
@@ -77,7 +69,6 @@ app.get('/odds', async (req, res) => {
                     }
                 };
             });
-
         res.json(processed);
     } catch (e) { res.status(200).json([]); }
 });
@@ -85,19 +76,19 @@ app.get('/odds', async (req, res) => {
 app.post('/auth/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
-    if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "Invalid" });
+    if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "Invalid Login" });
     res.json({ success: true, user });
 });
 
 app.post('/user/sync', async (req, res) => {
     const user = await User.findOne({ username: req.body.username });
-    res.json(user || {});
+    res.json(user || { balance: 0 });
 });
 
 app.post('/user/bet', async (req, res) => {
     const { username, stake, ticket } = req.body;
     const user = await User.findOne({ username });
-    if(user.balance < stake) return res.status(400).json({ error: "No Funds" });
+    if(user.balance < stake) return res.status(400).json({ error: "Low Funds" });
     user.balance -= stake;
     user.history.unshift(ticket);
     await user.save();

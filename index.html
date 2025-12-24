@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GL99 - Pro Betting View</title>
+    <title>GL99 - Professional View</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -67,9 +67,7 @@
                 <div class="italic text-gray-500 text-center py-5">Please select an odd.</div>
             </div>
             <div id="slip-action" class="p-2 border-t border-gray-400 hidden">
-                <div class="flex justify-between font-bold mb-2"><span>Stake:</span>
-                    <input type="number" id="stake-input" oninput="calcWin()" class="w-24 border border-blue-800 px-1 text-right" value="1000">
-                </div>
+                <div class="flex justify-between font-bold mb-2"><span>Stake:</span><input type="number" id="stake-input" oninput="calcWin()" class="w-24 border border-blue-800 px-1 text-right" value="1000"></div>
                 <div class="flex justify-between text-red-700 font-bold mb-3"><span>Max Win:</span><span id="max-win">0</span></div>
                 <button onclick="placeBet()" class="w-full bg-red-700 text-white font-bold py-2 rounded">PLACE BET</button>
             </div>
@@ -89,8 +87,10 @@
         }
 
         async function syncUser() {
-            const r = await fetch(`${API_BASE}/user/sync`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:currentUser.username})});
-            const d = await r.json(); document.getElementById('bal').innerText = d.balance.toLocaleString();
+            try {
+                const r = await fetch(`${API_BASE}/user/sync`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:currentUser.username})});
+                const d = await r.json(); document.getElementById('bal').innerText = d.balance.toLocaleString();
+            } catch(e) {}
         }
 
         async function fetchOdds() {
@@ -109,7 +109,7 @@
 
         function renderTable() {
             const tbody = document.getElementById('match-body'); tbody.innerHTML = '';
-            const now = new Date(); const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
+            const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
 
             let filtered = allMatches.filter(m => {
                 const mTime = new Date(m.time);
@@ -122,6 +122,8 @@
             document.getElementById('cnt-hdp').innerText = filtered.length;
             document.getElementById('cnt-parlay').innerText = filtered.length;
 
+            if (filtered.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-gray-500 italic">No matches available right now.</td></tr>'; return; }
+
             let leagueGroups = {};
             filtered.forEach(m => { if(!leagueGroups[m.league]) leagueGroups[m.league]=[]; leagueGroups[m.league].push(m); });
 
@@ -129,9 +131,7 @@
                 tbody.innerHTML += `<tr><td colspan="6" class="row-head">${league}</td></tr>`;
                 matches.forEach(m => {
                     const timeDisp = m.isLive ? `<div class="text-red-600 font-bold">${m.timer}'</div><div class="bg-red-600 text-white px-1 rounded inline-block font-black">${m.score}</div>` : `<div class="text-gray-500">${new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>`;
-                    
-                    tbody.innerHTML += `
-                    <tr class="border-b border-gray-300">
+                    tbody.innerHTML += `<tr class="border-b border-gray-300">
                         <td class="p-1 border-r bg-gray-50 text-center"><div>${timeDisp}</div><div class="font-bold text-blue-900 mt-1">${m.home}</div><div class="font-bold text-blue-900">${m.away}</div></td>
                         <td class="p-1 border-r"><div class="flex justify-between"><span>${m.fullTime.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.HDP','${m.home}','${m.fullTime.hdp.h}')">${m.fullTime.hdp.h}</span></div><div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.HDP','${m.away}','${m.fullTime.hdp.a}')">${m.fullTime.hdp.a}</span></div></td>
                         <td class="p-1 border-r"><div class="flex justify-between"><span>u${m.fullTime.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.OU','Over','${m.fullTime.ou.o}')">${m.fullTime.ou.o}</span></div><div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.OU','Under','${m.fullTime.ou.u}')">${m.fullTime.ou.u}</span></div></td>
