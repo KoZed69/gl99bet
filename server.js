@@ -10,14 +10,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// --- CONFIG (Securely using Variables) ---
+// --- CONFIG ---
 const MONGO_URI = process.env.MONGO_URI; 
 const TOKEN = process.env.BETS_API_TOKEN;
 const BETS_API_URL = "https://api.b365api.com/v1";
 
-// Database ချိတ်ဆက်မှု အောင်မြင်/မအောင်မြင် စစ်ဆေးခြင်း
 if (!MONGO_URI) {
-    console.error("❌ ERROR: MONGO_URI is not defined in Environment Variables!");
+    console.error("❌ ERROR: Cloud Variables ထဲတွင် MONGO_URI မရှိပါ။");
     process.exit(1); 
 }
 
@@ -39,15 +38,26 @@ function toMalay(decimal) {
     return d <= 2.0 ? (d - 1).toFixed(2) : (-1 / (d - 1)).toFixed(2);
 }
 
-// --- FETCH ODDS ---
+// --- FETCH ODDS (Filtered for Real Pro Soccer) ---
 app.get('/odds', async (req, res) => {
     try {
         const response = await axios.get(`${BETS_API_URL}/bet365/upcoming`, {
             params: { token: TOKEN, sport_id: 1 } 
         });
+        
         const rawMatches = response.data.results || [];
-        const processed = rawMatches.map(m => ({
-            id: m.id, league: m.league.name, home: m.home.name, away: m.away.name,
+        
+        // Esoccer နှင့် ဂိမ်းပွဲစဉ်များကို ဖယ်ထုတ်ခြင်း
+        const filteredMatches = rawMatches.filter(m => {
+            const leagueName = m.league.name.toLowerCase();
+            return !leagueName.includes("esoccer") && !leagueName.includes("mins play");
+        });
+
+        const processed = filteredMatches.map(m => ({
+            id: m.id, 
+            league: m.league.name, 
+            home: m.home.name, 
+            away: m.away.name,
             time: new Date(m.time * 1000).toISOString(),
             lines: [{
                 hdp: { label: m.main?.sp?.handicap || "0", h: toMalay(m.main?.sp?.h_odds), a: toMalay(m.main?.sp?.a_odds) },
@@ -115,4 +125,4 @@ app.post('/admin/settle', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 GL99 Live on Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 GL99 Real Soccer Live on Port ${PORT}`));
