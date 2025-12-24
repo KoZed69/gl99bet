@@ -54,32 +54,34 @@ app.get('/odds', async (req, res) => {
             return !name.includes("esoccer") && !name.includes("mins play");
         });
 
-        const processed = filtered.map(m => {
-            const isLive = m.timer ? true : false;
-            
-            // Odds များသည် main.sp သို့မဟုတ် အခြားနေရာတွင် ရှိနိုင်သဖြင့် အရန်စနစ်ဖြင့် ဆွဲယူခြင်း
-            const oddsSource = m.main?.sp || {};
+        // server.js ၏ Odds mapping အပိုင်းကို ဤသို့ ပြင်ဆင်ပါ
+const processed = filtered.map(m => {
+    const isLive = m.timer ? true : false;
+    
+    // BetsAPI ၏ Odds တည်နေရာ အမျိုးမျိုးကို စစ်ဆေးခြင်း
+    const sp = m.main?.sp || {};
+    const o = m.odds?.main?.sp || sp; // sp မရှိလျှင် odds.main.sp ကို ကြည့်မည်
 
-            return {
-                id: m.id,
-                league: m.league?.name || "Unknown League",
-                home: m.home?.name || "Home Team",
-                away: m.away?.name || "Away Team",
-                time: new Date(m.time * 1000).toISOString(),
-                isLive: isLive,
-                score: m.ss || "0-0",
-                timer: m.timer?.tm || "0",
-                fullTime: {
-                    hdp: { label: oddsSource.handicap || "0", h: toMalay(oddsSource.h_odds), a: toMalay(oddsSource.a_odds) },
-                    ou: { label: oddsSource.total || "0", o: toMalay(oddsSource.o_odds), u: toMalay(oddsSource.u_odds) },
-                    xx: { h: oddsSource.h2h_home || "2.00", a: oddsSource.h2h_away || "2.00", d: oddsSource.h2h_draw || "3.00" }
-                },
-                firstHalf: {
-                    hdp: { label: oddsSource.h1_handicap || "0", h: toMalay(oddsSource.h1_h_odds), a: toMalay(oddsSource.h1_a_odds) },
-                    ou: { label: oddsSource.h1_total || "0", o: toMalay(oddsSource.h1_o_odds), u: toMalay(oddsSource.h1_u_odds) }
-                }
-            };
-        });
+    return {
+        id: m.id,
+        league: m.league?.name || "Unknown",
+        home: m.home?.name || "Home",
+        away: m.away?.name || "Away",
+        time: new Date(m.time * 1000).toISOString(),
+        isLive: isLive,
+        score: m.ss || "0-0",
+        timer: m.timer?.tm || "0",
+        fullTime: {
+            hdp: { label: o.handicap || "0", h: toMalay(o.h_odds), a: toMalay(o.a_odds) },
+            ou: { label: o.total || "0", o: toMalay(o.o_odds), u: toMalay(o.u_odds) },
+            xx: { h: o.h2h_home || "2.00", a: o.h2h_away || "2.00", d: o.h2h_draw || "3.00" }
+        },
+        firstHalf: {
+            hdp: { label: o.h1_handicap || "0", h: toMalay(o.h1_h_odds), a: toMalay(o.h1_a_odds) },
+            ou: { label: o.h1_total || "0", o: toMalay(o.h1_o_odds), u: toMalay(o.h1_u_odds) }
+        }
+    };
+});
 
         console.log(`✅ Processed Matches: ${processed.length}`);
         res.json(processed);

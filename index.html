@@ -44,7 +44,7 @@
                 <div class="flex-1 py-1 bg-white text-red-700" onclick="setTab('Today')">Today</div>
                 <div class="flex-1 py-1 cursor-pointer" onclick="setTab('Live')">Live</div>
             </div>
-            <div class="flex-1 overflow-y-auto">
+            <div class="flex-1 overflow-y-auto"> 
                 <div class="p-1 font-bold text-blue-800"><i class="fas fa-futbol"></i> SOCCER</div>
                 <div class="menu-link active"><span>HDP & OU</span> <span class="text-red-700">24</span></div>
                 <div class="menu-link"><span>Odd/Even & Total Goal</span> <span class="text-red-700">356</span></div>
@@ -72,6 +72,24 @@
                 <tbody id="match-body"></tbody>
             </table>
         </div>
+        <div class="sidebar" style="width: 250px; border-left: 1px solid #999; border-right: none;">
+        <div class="bg-blue-900 text-white font-bold p-2 text-center">BET SLIP</div>
+        <div id="slip-container" class="p-2 overflow-y-auto" style="max-height: 400px;">
+            <div class="italic text-gray-500 text-center py-5">Please select an odd.</div>
+        </div>
+        <div id="slip-action" class="p-2 border-t border-gray-400 hidden">
+            <div class="flex justify-between font-bold mb-2">
+                <span>Stake:</span>
+                <input type="number" id="stake-input" oninput="calcWin()" class="w-24 border border-blue-800 px-1 text-right" value="1000">
+            </div>
+            <div class="flex justify-between text-red-700 font-bold mb-3">
+                <span>Max Win:</span>
+                <span id="max-win">0</span>
+            </div>
+            <button onclick="placeBet()" class="w-full bg-red-700 text-white font-bold py-2 rounded">PLACE BET</button>
+        </div>
+    </div>
+</div>
     </div>
 
     <script>
@@ -182,6 +200,60 @@
         }
     }
 
+    let currentSlip = null;
+
+// Odds နှိပ်လိုက်လျှင် Slip ထဲသို့ ထည့်ခြင်း
+function addToSlip(matchId, home, away, market, selection, odds) {
+    currentSlip = { matchId, home, away, market, selection, odds: parseFloat(odds) };
+    document.getElementById('slip-container').innerHTML = `
+        <div class="bg-yellow-50 border border-yellow-400 p-2 rounded text-[10px]">
+            <div class="flex justify-between font-bold text-blue-900">
+                <span>${selection}</span>
+                <span class="text-red-700">${odds}</span>
+            </div>
+            <div class="text-gray-500">${market}</div>
+            <div class="mt-1 font-bold">${home} vs ${away}</div>
+        </div>
+    `;
+    document.getElementById('slip-action').classList.remove('hidden');
+    calcWin();
+}
+
+function calcWin() {
+    if(!currentSlip) return;
+    const stake = document.getElementById('stake-input').value || 0;
+    const win = (stake * currentSlip.odds).toLocaleString();
+    document.getElementById('max-win').innerText = win;
+}
+
+async function placeBet() {
+    const stake = parseInt(document.getElementById('stake-input').value);
+    if(stake > currentUser.balance) return alert("Insufficient Balance!");
+    
+    const ticket = {
+        matches: [{ matchName: `${currentSlip.home} vs ${currentSlip.away}`, sel: currentSlip.selection, odds: currentSlip.odds }],
+        stake: stake,
+        win: document.getElementById('max-win').innerText,
+        date: new Date().toLocaleString(),
+        status: "Running"
+    };
+
+    const res = await fetch(`${API_BASE}/user/bet`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ username: currentUser.username, stake, ticket })
+    });
+    
+    if(res.ok) {
+        alert("Bet Placed Successfully!");
+        currentSlip = null;
+        document.getElementById('slip-action').classList.add('hidden');
+        document.getElementById('slip-container').innerHTML = '<div class="italic text-gray-500 text-center py-5">Please select an odd.</div>';
+        syncUser();
+    }
+}
+
+// renderTable ထဲရှိ odd-btn တိုင်းတွင် addToSlip function ကို လှမ်းခေါ်ရပါမည်
+// ဥပမာ - <span class="odd-btn" onclick="addToSlip('${m.id}', '${m.home}', '${m.away}', 'Full Time HDP', '${m.home}', '${m.fullTime.hdp.h}')">${m.fullTime.hdp.h}</span>
     function logout() { localStorage.removeItem('gl99_user'); window.location.href = 'login.html'; }
     init();
 </script>
