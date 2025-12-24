@@ -79,102 +79,102 @@
 
     <script>
     const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-    const currentUser = JSON.parse(localStorage.getItem('gl99_user'));
-    let allMatches = [], currentTab = 'Today', slip = [];
+const currentUser = JSON.parse(localStorage.getItem('gl99_user'));
+let allMatches = [], currentTab = 'Today', slip = [];
 
-    async function init() {
-        if(!currentUser) return window.location.href = 'login.html';
-        document.getElementById('user-name').innerText = currentUser.username;
-        await fetchOdds(); syncUser();
-        setInterval(fetchOdds, 30000); 
-    }
+async function init() {
+    if(!currentUser) return window.location.href = 'login.html';
+    document.getElementById('user-name').innerText = currentUser.username;
+    await fetchOdds(); 
+    syncUser();
+    setInterval(fetchOdds, 30000); // 30s auto-refresh for Live Score
+}
 
-    async function syncUser() {
-        try {
-            const r = await fetch(`${API_BASE}/user/sync`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:currentUser.username})});
-            const d = await r.json(); document.getElementById('bal').innerText = d.balance.toLocaleString();
-        } catch(e) {}
-    }
-
-    async function fetchOdds() {
-        try {
-            const res = await fetch(`${API_BASE}/odds`);
-            allMatches = await res.json(); 
-            console.log("Matches Received:", allMatches.length);
-            renderTable();
-        } catch(e) { console.error("Fetch Error"); }
-    }
-
-    function setTab(tab) {
-        currentTab = tab;
-        document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
-        if(event && event.currentTarget) {
-            event.currentTarget.classList.add('bg-white', 'text-red-700');
-            event.currentTarget.classList.remove('cursor-pointer');
-        }
+async function fetchOdds() {
+    try {
+        const res = await fetch(`${API_BASE}/odds`);
+        allMatches = await res.json(); 
+        console.log("Matches loaded in memory:", allMatches.length);
         renderTable();
+    } catch(e) { console.error("Fetch Error"); }
+}
+
+function setTab(tab, el) {
+    currentTab = tab;
+    // Tab အရောင်ပြောင်းလဲခြင်း logic
+    document.querySelectorAll('.sidebar .flex div').forEach(div => {
+        div.classList.remove('bg-white', 'text-red-700');
+        div.classList.add('cursor-pointer');
+    });
+    if(el) {
+        el.classList.add('bg-white', 'text-red-700');
+        el.classList.remove('cursor-pointer');
+    }
+    renderTable(); // ချက်ချင်း Redraw လုပ်ခြင်း
+}
+
+function renderTable() {
+    const tbody = document.getElementById('match-body'); 
+    if(!tbody) return;
+    
+    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+
+    let filtered = allMatches.filter(m => {
+        const mTime = new Date(m.time);
+        if (currentTab === 'Live') return m.isLive === true;
+        if (currentTab === 'Today') return m.isLive === false && mTime <= todayEnd;
+        if (currentTab === 'Early') return mTime > todayEnd;
+        return true;
+    });
+
+    // Sidebar counts update
+    const hdpEl = document.getElementById('cnt-hdp');
+    if(hdpEl) hdpEl.innerText = filtered.length;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-10 text-center text-gray-500 italic">No matches available in ${currentTab} right now.</td></tr>`;
+        return;
     }
 
-    function renderTable() {
-        const tbody = document.getElementById('match-body'); 
-        if(!tbody) return;
-        tbody.innerHTML = '';
-        
-        const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+    let leagueGroups = {};
+    filtered.forEach(m => { if(!leagueGroups[m.league]) leagueGroups[m.league]=[]; leagueGroups[m.league].push(m); });
 
-        let filtered = allMatches.filter(m => {
-            const mTime = new Date(m.time);
-            if (currentTab === 'Live') return m.isLive === true;
-            if (currentTab === 'Today') return m.isLive === false && mTime <= todayEnd;
-            if (currentTab === 'Early') return mTime > todayEnd;
-            return true;
+    // Performance Optimization: Build large string first
+    let htmlBuffer = ""; 
+    for(const [league, matches] of Object.entries(leagueGroups)) {
+        htmlBuffer += `<tr><td colspan="6" class="row-head">${league}</td></tr>`;
+        matches.forEach(m => {
+            const timeStr = new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const timeDisp = m.isLive ? `<div class="text-red-600 font-bold animate-pulse">${m.timer}'</div><div class="bg-red-600 text-white px-1 rounded inline-block font-black">${m.ss || m.score}</div>` : `<div class="text-gray-500">${timeStr}</div>`;
+
+            htmlBuffer += `
+            <tr class="border-b border-gray-300">
+                <td class="p-1 border-r bg-gray-50 text-center"><div>${timeDisp}</div><div class="font-bold text-blue-900 mt-1">${m.home}</div><div class="font-bold text-blue-900">${m.away}</div></td>
+                <td class="p-1 border-r">
+                    <div class="flex justify-between"><span>${m.fullTime.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.HDP','${m.home}','${m.fullTime.hdp.h}')">${m.fullTime.hdp.h}</span></div>
+                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.HDP','${m.away}','${m.fullTime.hdp.a}')">${m.fullTime.hdp.a}</span></div>
+                </td>
+                <td class="p-1 border-r">
+                    <div class="flex justify-between"><span>u${m.fullTime.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.OU','Over','${m.fullTime.ou.o}')">${m.fullTime.ou.o}</span></div>
+                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.OU','Under','${m.fullTime.ou.u}')">${m.fullTime.ou.u}</span></div>
+                </td>
+                <td class="p-1 border-r bg-pink-50">
+                    <div class="flex justify-between"><span>${m.firstHalf.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.HDP','${m.home}','${m.firstHalf.hdp.h}')">${m.firstHalf.hdp.h}</span></div>
+                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.HDP','${m.away}','${m.firstHalf.hdp.a}')">${m.firstHalf.hdp.a}</span></div>
+                </td>
+                <td class="p-1 border-r bg-pink-50">
+                    <div class="flex justify-between"><span>u${m.firstHalf.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.OU','Over','${m.firstHalf.ou.o}')">${m.firstHalf.ou.o}</span></div>
+                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.OU','Under','${m.firstHalf.ou.u}')">${m.firstHalf.ou.u}</span></div>
+                </td>
+                <td class="p-1 text-center font-bold">
+                    <div class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1X2','Home','${m.fullTime.xx.h}')">${m.fullTime.xx.h}</div>
+                    <div class="odd-btn mt-1" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1X2','Away','${m.fullTime.xx.a}')">${m.fullTime.xx.a}</div>
+                </td>
+            </tr>`;
         });
-
-        // Bug Fix: Check if counter element exists before writing
-        const hdpEl = document.getElementById('cnt-hdp');
-        if(hdpEl) hdpEl.innerText = filtered.length;
-
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="p-10 text-center text-gray-500 italic">No matches available in ${currentTab} right now.<br><small>Click 'Early' tab to see upcoming matches.</small></td></tr>`;
-            return;
-        }
-
-        let leagueGroups = {};
-        filtered.forEach(m => { if(!leagueGroups[m.league]) leagueGroups[m.league]=[]; leagueGroups[m.league].push(m); });
-
-        for(const [league, matches] of Object.entries(leagueGroups)) {
-            tbody.innerHTML += `<tr><td colspan="6" class="row-head">${league}</td></tr>`;
-            matches.forEach(m => {
-                const timeStr = new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                const timeDisp = m.isLive ? `<div class="text-red-600 font-bold animate-pulse">${m.timer}'</div><div class="bg-red-600 text-white px-1 rounded inline-block font-black">${m.score}</div>` : `<div class="text-gray-500">${timeStr}</div>`;
-
-                tbody.innerHTML += `
-                <tr class="border-b border-gray-300">
-                    <td class="p-1 border-r bg-gray-50 text-center"><div>${timeDisp}</div><div class="font-bold text-blue-900 mt-1">${m.home}</div><div class="font-bold text-blue-900">${m.away}</div></td>
-                    <td class="p-1 border-r">
-                        <div class="flex justify-between"><span>${m.fullTime.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.HDP','${m.home}','${m.fullTime.hdp.h}')">${m.fullTime.hdp.h}</span></div>
-                        <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.HDP','${m.away}','${m.fullTime.hdp.a}')">${m.fullTime.hdp.a}</span></div>
-                    </td>
-                    <td class="p-1 border-r">
-                        <div class="flex justify-between"><span>u${m.fullTime.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.OU','Over','${m.fullTime.ou.o}')">${m.fullTime.ou.o}</span></div>
-                        <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.OU','Under','${m.fullTime.ou.u}')">${m.fullTime.ou.u}</span></div>
-                    </td>
-                    <td class="p-1 border-r bg-pink-50">
-                        <div class="flex justify-between"><span>${m.firstHalf.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.HDP','${m.home}','${m.firstHalf.hdp.h}')">${m.firstHalf.hdp.h}</span></div>
-                        <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.HDP','${m.away}','${m.firstHalf.hdp.a}')">${m.firstHalf.hdp.a}</span></div>
-                    </td>
-                    <td class="p-1 border-r bg-pink-50">
-                        <div class="flex justify-between"><span>u${m.firstHalf.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.OU','Over','${m.firstHalf.ou.o}')">${m.firstHalf.ou.o}</span></div>
-                        <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.OU','Under','${m.firstHalf.ou.u}')">${m.firstHalf.ou.u}</span></div>
-                    </td>
-                    <td class="p-1 text-center font-bold">
-                        <div class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1X2','Home','${m.fullTime.xx.h}')">${m.fullTime.xx.h}</div>
-                        <div class="odd-btn mt-1" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1X2','Away','${m.fullTime.xx.a}')">${m.fullTime.xx.a}</div>
-                    </td>
-                </tr>`;
-            });
-        }
     }
+    tbody.innerHTML = htmlBuffer; // တစ်ကြိမ်တည်းဖြင့် DOM ထဲသို့ ထည့်သွင်းခြင်း
+}
 
     function addToSlip(matchId, home, away, market, selection, odds) {
         if(odds === "-") return;
