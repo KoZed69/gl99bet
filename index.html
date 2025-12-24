@@ -95,34 +95,40 @@
             allMatches = await res.json(); renderTable();
         }
 
-        // index.html ထဲရှိ renderTable function ကို ဤကုဒ်ဖြင့် အစားထိုးပါ
-function renderTable() {
-    const tbody = document.getElementById('match-body'); tbody.innerHTML = '';
+        function renderTable() {
+    const tbody = document.getElementById('match-body'); 
+    tbody.innerHTML = '';
     const now = new Date();
-    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+    const todayEnd = new Date(); 
+    todayEnd.setHours(23, 59, 59, 999);
 
-    // Tab အလိုက် Filter လုပ်ခြင်း
+    // Tab အလိုက် Filter လုပ်ခြင်း (Syntax error ပြင်ပြီး)
     let filtered = allMatches.filter(m => {
-        if (currentTab === 'Live') return m.isLive === true; // Live ပွဲများကိုသာ ပြရန်
-        if (currentTab === 'Today') return m.isLive === false; // ယနေ့ပွဲစဉ်များပြရန်
-        if (currentTab === 'Early') return mTime > todayEnd; // နောင်လာမည့်ပွဲများ
+        const mTime = new Date(m.time); // ဤနေရာတွင် mTime ကို ဖွင့်ဆိုရမည်
+        if (currentTab === 'Live') return m.isLive === true;
+        if (currentTab === 'Today') return m.isLive === false && mTime <= todayEnd;
+        if (currentTab === 'Early') return mTime > todayEnd;
         return true;
     });
 
     let leagueGroups = {};
-    filtered.forEach(m => { if(!leagueGroups[m.league]) leagueGroups[m.league]=[]; leagueGroups[m.league].push(m); });
-const timeDisplay = m.isLive ? `<span class="text-red-600 font-bold">${m.timer}' <br> ${m.score}</span>` : time;
+    filtered.forEach(m => { 
+        if(!leagueGroups[m.league]) leagueGroups[m.league]=[]; 
+        leagueGroups[m.league].push(m); 
+    });
 
     for(const [league, matches] of Object.entries(leagueGroups)) {
         tbody.innerHTML += `<tr><td colspan="6" class="row-head">${league}</td></tr>`;
         matches.forEach(m => {
             const time = new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             
-            // Malay Odds Style Grid
+            // Live ပွဲများအတွက် အချိန်ပြသပုံ ပြင်ဆင်ခြင်း
+            const timeDisplay = m.isLive ? `<span class="text-red-600 font-bold">${m.timer}' <br> ${m.score}</span>` : time;
+
             tbody.innerHTML += `
             <tr class="border-b border-gray-300">
                 <td class="p-1 border-r bg-gray-50 text-[10px]">
-                    <div class="text-gray-500">${time}</div>
+                    <div class="text-gray-500">${timeDisplay}</div>
                     <div class="font-bold text-blue-900">${m.home}</div>
                     <div class="font-bold text-blue-900">${m.away}</div>
                 </td>
@@ -170,6 +176,7 @@ const timeDisplay = m.isLive ? `<span class="text-red-600 font-bold">${m.timer}'
         });
     }
 }
+
         function logout() { localStorage.removeItem('gl99_user'); window.location.href = 'login.html'; }
         init();
     </script>
