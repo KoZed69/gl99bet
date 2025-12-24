@@ -14,7 +14,7 @@ const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://kozed:Bwargyi69@cluste
 const TOKEN = process.env.BETS_API_TOKEN || "241806-4Tr2NNdfhQxz9X";
 const BETS_API_URL = "https://api.b365api.com/v1";
 
-mongoose.connect(MONGO_URI).then(() => console.log("✅ GL99 DB Connected"));
+mongoose.connect(MONGO_URI).then(() => console.log("✅ GL99 Database Connected"));
 
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, unique: true },
@@ -36,12 +36,16 @@ app.get('/odds', async (req, res) => {
             axios.get(`${BETS_API_URL}/bet365/upcoming`, { params: { token: TOKEN, sport_id: 1 } })
         ]);
 
-        const allMatches = [...(inplayRes.data.results || []), ...(upcomingRes.data.results || [])];
+        const allRawMatches = [...(inplayRes.data.results || []), ...(upcomingRes.data.results || [])];
 
-        const processed = allMatches
+        const processed = allRawMatches
             .filter(m => m.league && !m.league.name.toLowerCase().includes("esoccer"))
             .map(m => {
-                const sp = m.main?.sp || m.odds?.main?.sp || {};
+                // Professional Odds Mapping (Deep Search)
+                const mainSp = m.main?.sp || {};
+                const altSp = m.odds?.main?.sp || {};
+                const sp = Object.keys(mainSp).length > 0 ? mainSp : altSp;
+
                 return {
                     id: m.id,
                     league: m.league.name,
@@ -58,30 +62,20 @@ app.get('/odds', async (req, res) => {
                     },
                     firstHalf: {
                         hdp: { label: sp.h1_handicap || "0", h: toMalay(sp.h1_h_odds), a: toMalay(sp.h1_a_odds) },
-                        ou: { label: sp.h1_total || "0", o: toMalay(sp.h1_o_odds), u: toMalay(m.main?.sp?.h1_u_odds) }
+                        ou: { label: sp.h1_total || "0", o: toMalay(sp.h1_o_odds), u: toMalay(sp.h1_u_odds) }
                     }
                 };
             });
         res.json(processed);
-    } catch (e) {
-        res.status(200).json([]);
-    }
+    } catch (e) { res.status(200).json([]); }
 });
 
-// AUTH & USER ROUTES
+// AUTH & USER ROUTES (Login, Sync, Bet)
 app.post('/auth/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "Invalid Login" });
     res.json({ success: true, user });
-});
-
-app.post('/auth/register', async (req, res) => {
-    const { username, password } = req.body;
-    if (await User.findOne({ username })) return res.status(400).json({ error: "User Exists" });
-    const user = new User({ username, password: await bcrypt.hash(password, 10), balance: 0 });
-    await user.save();
-    res.json({ success: true });
 });
 
 app.post('/user/sync', async (req, res) => {
@@ -100,4 +94,4 @@ app.post('/user/bet', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 GL99 Perfect Server on Port ${PORT}`));
