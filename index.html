@@ -128,23 +128,25 @@
     if(!tbody) return;
     tbody.innerHTML = '';
 
+    // Myanmar Timezone အတွက် ရက်စွဲညှိခြင်း
     const now = new Date();
-    const todayStr = now.toLocaleDateString(); 
+    const todayStr = now.toDateString(); 
 
     let filtered = allMatches.filter(m => {
         const mTime = new Date(m.time);
-        const mDateStr = mTime.toLocaleDateString();
+        const mDateStr = mTime.toDateString();
 
         if (currentTab === 'Live') return m.isLive;
-        // Today = Matches happening on the same calendar day as 'now'
+        // Today Tab: အခုလက်ရှိရက်စွဲနဲ့ တူတဲ့ပွဲများ
         if (currentTab === 'Today') return !m.isLive && mDateStr === todayStr;
-        // Early = Matches happening after today
+        // Early Tab: ဒီနေ့ထက် နောက်ကျတဲ့ရက်စွဲများ
         if (currentTab === 'Early') return !m.isLive && mTime > now && mDateStr !== todayStr;
         return true;
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-10 text-center text-gray-400">No matches found in ${currentTab}.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="p-10 text-center text-gray-500">No matches found in ${currentTab}.</td></tr>`;
+        document.getElementById('cnt-hdp').innerText = "0";
         return;
     }
 
@@ -159,9 +161,14 @@
     let htmlBuffer = ""; 
     for(const [groupName, matches] of Object.entries(leagueGroups)) {
         htmlBuffer += `<tr><td colspan="6" class="row-head">${groupName}</td></tr>`;
+        
         matches.forEach(m => {
             const timeStr = new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             const statusDisp = m.isLive ? `<div class="text-red-600 font-bold">${m.timer}'</div><div class="bg-red-600 text-white px-1 rounded text-[10px]">${m.score}</div>` : `<div class="text-gray-500">${timeStr}</div>`;
+
+            // အသင်းနာမည်များတွင် ' ပါပါက Error မတက်အောင် ရှင်းထုတ်ခြင်း
+            const safeHome = m.home.replace(/'/g, "\\'");
+            const safeAway = m.away.replace(/'/g, "\\'");
 
             htmlBuffer += `
             <tr class="border-b border-gray-300">
@@ -171,30 +178,29 @@
                     <div class="font-bold text-blue-900 leading-tight">${m.away}</div>
                 </td>
                 <td class="p-1 border-r w-24">
-                    <div class="flex justify-between"><span>${m.fullTime.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.HDP','${m.home}','${m.fullTime.hdp.h}')">${m.fullTime.hdp.h}</span></div>
-                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.HDP','${m.away}','${m.fullTime.hdp.a}')">${m.fullTime.hdp.a}</span></div>
+                    <div class="flex justify-between"><span>${m.fullTime.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','FT.HDP','${safeHome}','${m.fullTime.hdp.h}')">${m.fullTime.hdp.h}</span></div>
+                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','FT.HDP','${safeAway}','${m.fullTime.hdp.a}')">${m.fullTime.hdp.a}</span></div>
                 </td>
                 <td class="p-1 border-r w-24">
-                    <div class="flex justify-between"><span>u${m.fullTime.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.OU','Over','${m.fullTime.ou.o}')">${m.fullTime.ou.o}</span></div>
-                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','FT.OU','Under','${m.fullTime.ou.u}')">${m.fullTime.ou.u}</span></div>
+                    <div class="flex justify-between"><span>u${m.fullTime.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','FT.OU','Over','${m.fullTime.ou.o}')">${m.fullTime.ou.o}</span></div>
+                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','FT.OU','Under','${m.fullTime.ou.u}')">${m.fullTime.ou.u}</span></div>
                 </td>
                 <td class="p-1 border-r w-24 bg-pink-50">
-                    <div class="flex justify-between"><span>${m.firstHalf.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.HDP','${m.home}','${m.firstHalf.hdp.h}')">${m.firstHalf.hdp.h}</span></div>
-                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.HDP','${m.away}','${m.firstHalf.hdp.a}')">${m.firstHalf.hdp.a}</span></div>
+                    <div class="flex justify-between"><span>${m.firstHalf.hdp.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','1H.HDP','${safeHome}','${m.firstHalf.hdp.h}')">${m.firstHalf.hdp.h}</span></div>
+                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','1H.HDP','${safeAway}','${m.firstHalf.hdp.a}')">${m.firstHalf.hdp.a}</span></div>
                 </td>
                 <td class="p-1 border-r w-24 bg-pink-50">
-                    <div class="flex justify-between"><span>u${m.firstHalf.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.OU','Over','${m.firstHalf.ou.o}')">${m.firstHalf.ou.o}</span></div>
-                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1H.OU','Under','${m.firstHalf.ou.u}')">${m.firstHalf.ou.u}</span></div>
+                    <div class="flex justify-between"><span>u${m.firstHalf.ou.label}</span><span class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','1H.OU','Over','${m.firstHalf.ou.o}')">${m.firstHalf.ou.o}</span></div>
+                    <div class="flex justify-end mt-1"><span class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','1H.OU','Under','${m.firstHalf.ou.u}')">${m.firstHalf.ou.u}</span></div>
                 </td>
                 <td class="p-1 text-center font-bold w-16">
-                    <div class="odd-btn" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1X2','Home','${m.fullTime.xx.h}')">${m.fullTime.xx.h}</div>
-                    <div class="odd-btn mt-1" onclick="addToSlip('${m.id}','${m.home}','${m.away}','1X2','Away','${m.fullTime.xx.a}')">${m.fullTime.xx.a}</div>
+                    <div class="odd-btn" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','1X2','Home','${m.fullTime.xx.h}')">${m.fullTime.xx.h}</div>
+                    <div class="odd-btn mt-1" onclick="addToSlip('${m.id}','${safeHome}','${safeAway}','1X2','Away','${m.fullTime.xx.a}')">${m.fullTime.xx.a}</div>
                 </td>
             </tr>`;
         });
     }
     tbody.innerHTML = htmlBuffer;
-    // Update Counts
     document.getElementById('cnt-hdp').innerText = filtered.length;
 }
 
