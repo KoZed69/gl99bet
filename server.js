@@ -54,34 +54,33 @@ app.get('/odds', async (req, res) => {
         const allData = [...liveMatches.map(m => ({...m, isLiveFlag: true})), 
                          ...upcomingMatches.map(m => ({...m, isLiveFlag: false}))];
 
-        const processed = allData.map(m => {
-            // Unix Epoch time ကို Javascript Date object ပြောင်းခြင်း
-            const matchDate = new Date(m.time * 1000); 
+        // Replace the map function inside app.get('/odds') with this:
+const processed = allData.map(m => {
+    const matchDate = new Date(m.time * 1000); 
+    
+    // API v3 usually puts main market odds here:
+    const sp = m.main?.sp || m.odds?.main?.sp || {};
 
-            // Odds Mapping ကို Documentation အတိုင်း ပြန်ချိန်ခြင်း
-            // မှတ်ချက် - v3 မှာ main odds တွေက m.main ထဲမှာ ပါတတ်ပါတယ်
-            const sp = m.main?.sp || {};
-
-            return {
-                id: m.id,
-                league: m.league.name,
-                home: m.home.name,
-                away: m.away.name,
-                time: matchDate.toISOString(), // ISO format ပြောင်းပေးလိုက်မှ frontend မှာ filter လွယ်ပါမယ်
-                isLive: m.isLiveFlag,
-                score: m.ss || "0-0",
-                timer: m.timer?.tm || "0",
-                fullTime: {
-                    hdp: { label: sp.handicap || "0", h: toMalay(sp.h_odds), a: toMalay(sp.a_odds) },
-                    ou: { label: sp.total || "0", o: toMalay(sp.o_odds), u: toMalay(sp.u_odds) },
-                    xx: { h: sp.h2h_home || "-", a: sp.h2h_away || "-" }
-                },
-                firstHalf: {
-                    hdp: { label: sp.h1_handicap || "0", h: toMalay(sp.h1_h_odds), a: toMalay(sp.h1_a_odds) },
-                    ou: { label: sp.h1_total || "0", o: toMalay(sp.h1_o_odds), u: toMalay(sp.h1_u_odds) }
-                }
-            };
-        });
+    return {
+        id: m.id,
+        league: m.league.name,
+        home: m.home.name,
+        away: m.away.name,
+        time: matchDate.toISOString(),
+        isLive: m.isLiveFlag,
+        score: m.ss || "0-0",
+        timer: m.timer?.tm || "0",
+        fullTime: {
+            hdp: { label: sp.handicap || "0", h: toMalay(sp.h_odds || sp.home_odds), a: toMalay(sp.a_odds || sp.away_odds) },
+            ou: { label: sp.total || "0", o: toMalay(sp.o_odds || sp.over_odds), u: toMalay(sp.u_odds || sp.under_odds) },
+            xx: { h: sp.h2h_home || "2.00", a: sp.h2h_away || "2.00" }
+        },
+        firstHalf: {
+            hdp: { label: sp.h1_handicap || "0", h: toMalay(sp.h1_h_odds), a: toMalay(sp.h1_a_odds) },
+            ou: { label: sp.h1_total || "0", o: toMalay(sp.h1_o_odds), u: toMalay(sp.h1_u_odds) }
+        }
+    };
+});
 
         console.log(`✅ Update: ${processed.length} matches found.`);
         res.json(processed);
