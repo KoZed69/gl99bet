@@ -24,9 +24,16 @@ const User = mongoose.model('User', new mongoose.Schema({
 }));
 
 function toMalay(decimal) {
-    if (!decimal || decimal === 1 || decimal === "-") return "-"; 
     const d = parseFloat(decimal);
-    return d <= 2.0 ? (d - 1).toFixed(2) : (-1 / (d - 1)).toFixed(2);
+    if (!d || d <= 1.0) return "-"; 
+    // Standard Malay Formula:
+    // If Decimal >= 2.0: -1 / (Decimal - 1)
+    // If Decimal < 2.0: (Decimal - 1)
+    if (d >= 2.0) {
+        return (-1 / (d - 1)).toFixed(2);
+    } else {
+        return (d - 1).toFixed(2);
+    }
 }
 
 app.get('/odds', async (req, res) => {
@@ -50,28 +57,62 @@ app.get('/odds', async (req, res) => {
         upcomingResults.forEach(r => { if(r.data && r.data.results) upcomingRaw = [...upcomingRaw, ...r.data.results]; });
         const upcomingMatches = upcomingRaw.map(m => ({ ...m, isLiveFlag: false }));
 
-        const processed = [...liveMatches, ...upcomingMatches]
-            .filter(m => m.league && !m.league.name.toLowerCase().includes("esoccer"))
-            .map(m => {
-                // Odds Mapping Fix: Try multiple sources
-                const sp = m.main?.sp || m.odds?.main?.sp || {};
-                return {
-                    id: m.id, league: m.league.name, home: m.home.name, away: m.away.name,
-                    time: new Date(m.time * 1000).toISOString(),
-                    isLive: m.isLiveFlag || !!m.timer, 
-                    score: m.ss || "0-0",
-                    timer: m.timer?.tm || "0",
-                    fullTime: {
-                        hdp: { label: sp.handicap || "0", h: toMalay(sp.h_odds), a: toMalay(sp.a_odds) },
-                        ou: { label: sp.total || "0", o: toMalay(sp.o_odds), u: toMalay(sp.u_odds) },
-                        xx: { h: sp.h2h_home || "2.00", a: sp.h2h_away || "2.00" }
-                    },
-                    firstHalf: {
-                        hdp: { label: sp.h1_handicap || "0", h: toMalay(sp.h1_h_odds), a: toMalay(sp.h1_a_odds) },
-                        ou: { label: sp.h1_total || "0", o: toMalay(sp.h1_o_odds), u: toMalay(sp.h1_u_odds) }
-                    }
-                };
-            });
+        // --- Update this function in server.js ---
+function toMalay(decimal) {
+    const d = parseFloat(decimal);
+    if (!d || d <= 1.0) return "-"; 
+    // Standard Malay Formula:
+    // If Decimal >= 2.0: -1 / (Decimal - 1)
+    // If Decimal < 2.0: (Decimal - 1)
+    if (d >= 2.0) {
+        return (-1 / (d - 1)).toFixed(2);
+    } else {
+        return (d - 1).toFixed(2);
+    }
+}
+
+// --- Update the mapping logic inside app.get('/odds') ---
+const processed = [...liveMatches, ...upcomingMatches]
+    .filter(m => m.league && !m.league.name.toLowerCase().includes("esoccer"))
+    .map(m => {
+        // Use a more resilient odds extraction
+        const sp = m.main?.sp || m.odds?.main?.sp || {};
+        return {
+            id: m.id, 
+            league: m.league.name, 
+            home: m.home.name, 
+            away: m.away.name,
+            time: new Date(m.time * 1000).toISOString(),
+            isLive: m.isLiveFlag || !!m.timer, 
+            score: m.ss || "0-0",
+            timer: m.timer?.tm || "0",
+            fullTime: {
+                hdp: { 
+                    label: sp.handicap || "0", 
+                    h: toMalay(sp.h_odds || sp.home_odds), 
+                    a: toMalay(sp.a_odds || sp.away_odds) 
+                },
+                ou: { 
+                    label: sp.total || "0", 
+                    o: toMalay(sp.o_odds || sp.over_odds), 
+                    u: toMalay(sp.u_odds || sp.under_odds) 
+                },
+                xx: { h: (sp.h2h_home || "2.00"), a: (sp.h2h_away || "2.00") }
+            },
+            firstHalf: {
+                hdp: { 
+                    label: sp.h1_handicap || "0", 
+                    h: toMalay(sp.h1_h_odds), 
+                    a: toMalay(sp.h1_a_odds) 
+                },
+                ou: { 
+                    label: sp.h1_total || "0", 
+                    o: toMalay(sp.h1_o_odds), 
+                    u: toMalay(sp.h1_u_odds) 
+                }
+            }
+        };
+    });
         console.log(`✅ Matches Found: ${processed.length} (Live: ${liveMatches.length})`);
         res.json(processed);
     } catch (e) { res.status(200).json([]); }
