@@ -12,7 +12,7 @@ app.use(express.static(__dirname));
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://kozed:Bwargyi69@cluster0.s5oybom.mongodb.net/gl99_db";
 const TOKEN = process.env.BETS_API_TOKEN || "241806-4Tr2NNdfhQxz9X";
-const BETS_API_URL = "https://api.b365api.com/v1";
+const BETS_API_URL = "https://api.b365api.com/v3"; // v3 ကို သုံးခြင်း
 
 mongoose.connect(MONGO_URI).then(() => console.log("✅ GL99 Perfection DB Connected"));
 
@@ -38,84 +38,57 @@ function toMalay(decimal) {
 
 app.get('/odds', async (req, res) => {
     try {
-        const inplayRes = await axios.get(`${BETS_API_URL}/bet365/inplay`, { params: { token: TOKEN, sport_id: 1 } });
+        // 1. Inplay (Live) အတွက် v3 endpoint သုံးခြင်း
+        const inplayRes = await axios.get(`${BETS_API_URL}/events/inplay`, { 
+            params: { token: TOKEN, sport_id: 1 } 
+        });
         
-        const upcomingPromises = [];
-        for (let i = 0; i < 7; i++) {
-            const date = new Date();
-            date.setDate(date.getDate() + i);
-            const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-            upcomingPromises.push(
-                axios.get(`${BETS_API_URL}/bet365/upcoming`, { params: { token: TOKEN, sport_id: 1, day: dateStr } })
-                .catch(() => ({ data: { results: [] } }))
-            );
-        }
+        // 2. Upcoming အတွက် v3 endpoint သုံးခြင်း
+        const upcomingRes = await axios.get(`${BETS_API_URL}/events/upcoming`, { 
+            params: { token: TOKEN, sport_id: 1, skip_esports: 'true' } 
+        });
 
-        const upcomingResults = await Promise.all(upcomingPromises);
-        const liveMatches = (inplayRes.data.results || []).map(m => ({ ...m, isLiveFlag: true }));
-        let upcomingRaw = [];
-        upcomingResults.forEach(r => { if(r.data && r.data.results) upcomingRaw = [...upcomingRaw, ...r.data.results]; });
-        const upcomingMatches = upcomingRaw.map(m => ({ ...m, isLiveFlag: false }));
+        const liveMatches = inplayRes.data.results || [];
+        const upcomingMatches = upcomingRes.data.results || [];
 
-        // --- Update this function in server.js ---
-function toMalay(decimal) {
-    const d = parseFloat(decimal);
-    if (!d || d <= 1.0) return "-"; 
-    // Standard Malay Formula:
-    // If Decimal >= 2.0: -1 / (Decimal - 1)
-    // If Decimal < 2.0: (Decimal - 1)
-    if (d >= 2.0) {
-        return (-1 / (d - 1)).toFixed(2);
-    } else {
-        return (d - 1).toFixed(2);
-    }
-}
+        const allData = [...liveMatches.map(m => ({...m, isLiveFlag: true})), 
+                         ...upcomingMatches.map(m => ({...m, isLiveFlag: false}))];
 
-// --- Update the mapping logic inside app.get('/odds') ---
-const processed = [...liveMatches, ...upcomingMatches]
-    .filter(m => m.league && !m.league.name.toLowerCase().includes("esoccer"))
-    .map(m => {
-        // Use a more resilient odds extraction
-        const sp = m.main?.sp || m.odds?.main?.sp || {};
-        return {
-            id: m.id, 
-            league: m.league.name, 
-            home: m.home.name, 
-            away: m.away.name,
-            time: new Date(m.time * 1000).toISOString(),
-            isLive: m.isLiveFlag || !!m.timer, 
-            score: m.ss || "0-0",
-            timer: m.timer?.tm || "0",
-            fullTime: {
-                hdp: { 
-                    label: sp.handicap || "0", 
-                    h: toMalay(sp.h_odds || sp.home_odds), 
-                    a: toMalay(sp.a_odds || sp.away_odds) 
+        const processed = allData.map(m => {
+            // Unix Epoch time ကို Javascript Date object ပြောင်းခြင်း
+            const matchDate = new Date(m.time * 1000); 
+
+            // Odds Mapping ကို Documentation အတိုင်း ပြန်ချိန်ခြင်း
+            // မှတ်ချက် - v3 မှာ main odds တွေက m.main ထဲမှာ ပါတတ်ပါတယ်
+            const sp = m.main?.sp || {};
+
+            return {
+                id: m.id,
+                league: m.league.name,
+                home: m.home.name,
+                away: m.away.name,
+                time: matchDate.toISOString(), // ISO format ပြောင်းပေးလိုက်မှ frontend မှာ filter လွယ်ပါမယ်
+                isLive: m.isLiveFlag,
+                score: m.ss || "0-0",
+                timer: m.timer?.tm || "0",
+                fullTime: {
+                    hdp: { label: sp.handicap || "0", h: toMalay(sp.h_odds), a: toMalay(sp.a_odds) },
+                    ou: { label: sp.total || "0", o: toMalay(sp.o_odds), u: toMalay(sp.u_odds) },
+                    xx: { h: sp.h2h_home || "-", a: sp.h2h_away || "-" }
                 },
-                ou: { 
-                    label: sp.total || "0", 
-                    o: toMalay(sp.o_odds || sp.over_odds), 
-                    u: toMalay(sp.u_odds || sp.under_odds) 
-                },
-                xx: { h: (sp.h2h_home || "2.00"), a: (sp.h2h_away || "2.00") }
-            },
-            firstHalf: {
-                hdp: { 
-                    label: sp.h1_handicap || "0", 
-                    h: toMalay(sp.h1_h_odds), 
-                    a: toMalay(sp.h1_a_odds) 
-                },
-                ou: { 
-                    label: sp.h1_total || "0", 
-                    o: toMalay(sp.h1_o_odds), 
-                    u: toMalay(sp.h1_u_odds) 
+                firstHalf: {
+                    hdp: { label: sp.h1_handicap || "0", h: toMalay(sp.h1_h_odds), a: toMalay(sp.h1_a_odds) },
+                    ou: { label: sp.h1_total || "0", o: toMalay(sp.h1_o_odds), u: toMalay(sp.h1_u_odds) }
                 }
-            }
-        };
-    });
-        console.log(`✅ Matches Found: ${processed.length} (Live: ${liveMatches.length})`);
+            };
+        });
+
+        console.log(`✅ Update: ${processed.length} matches found.`);
         res.json(processed);
-    } catch (e) { res.status(200).json([]); }
+    } catch (e) {
+        console.error("API Error:", e.message);
+        res.status(200).json([]);
+    }
 });
 
 // မူလ User & Auth Routes များကို အပြည့်အစုံ ပြန်လည်ဖြည့်သွင်းပေးထားပါသည်

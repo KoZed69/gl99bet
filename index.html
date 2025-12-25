@@ -125,23 +125,19 @@
 
     function renderTable() {
     const tbody = document.getElementById('match-body'); 
-    if(!tbody) return;
     tbody.innerHTML = '';
 
     const now = new Date();
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    // မြန်မာစံတော်ချိန်အတွက် 'Today' ကို တွက်ချက်ခြင်း
+    const todayStr = now.toLocaleDateString(); 
 
     let filtered = allMatches.filter(m => {
-        const isActuallyLive = m.isLive === true || (m.timer && m.timer !== "0");
-        if (currentTab === 'Live') return isActuallyLive;
-        
         const mTime = new Date(m.time);
-        // Robust Today Check: Matches on the same calendar day as 'now'
-        const isToday = mTime.toDateString() === now.toDateString();
+        const mDateStr = mTime.toLocaleDateString();
 
-        if (currentTab === 'Today') return !isActuallyLive && isToday;
-        if (currentTab === 'Early') return !isActuallyLive && mTime > todayEnd;
+        if (currentTab === 'Live') return m.isLive;
+        if (currentTab === 'Today') return !m.isLive && mDateStr === todayStr;
+        if (currentTab === 'Early') return !m.isLive && mTime > now && mDateStr !== todayStr;
         return true;
     });
 
